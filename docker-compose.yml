@@ -1,0 +1,139 @@
+version: '3.8'
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.8.3
+    ports:
+      - "9092:9092"
+
+    environment:
+      KAFKA_KRAFT_MODE: 'true'
+
+      CLUSTER_ID: '1L6g7nGhU-eAKfL--X25wo'
+      KAFKA_NODE_ID: 1
+
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+
+    volumes:
+      - kafka_kraft:/var/lib/kafka/data
+    networks:
+      - weapons-network
+
+  mongo:
+    image: docker.io/library/mongo:7
+    container_name: weapons-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: secretpass
+      MONGO_INITDB_DATABASE: weapon_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - weapons-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/weapon_db --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mysql:
+    image: mysql:8.0
+    container_name: weapons-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: weapon_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - weapons-network
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  analytic-api:
+    build:
+      context: /analytics-api/.
+      dockerfile: Dockerfile
+    container_name: analytic-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DB: weapon_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - weapons-network
+
+  consumer:
+    build:
+      context: /consumer/.
+      dockerfile: Dockerfile
+    container_name: weapons-consumer
+    restart: unless-stopped
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: weapons
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DB: weapon_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - weapons-network
+
+
+  producer:
+    build:
+      context: /producer/.
+      dockerfile: Dockerfile
+    container_name: producer
+    restart: unless-stopped
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: weapons
+      MONGODB_URI: mongodb://admin:secretpass@mongo:27017/?authSource=admin
+      DATABASE_NAME: weapon_db
+      COLLECTION_NAME: weapons
+    networks:
+      - weapons-network
+
+   
+volumes:
+  kafka_kraft:
+    driver: local
+  mongo_data:
+    driver: local
+  mysql_data:
+    driver: local
+
+networks:
+  weapons-network:
+    driver: bridge
+
