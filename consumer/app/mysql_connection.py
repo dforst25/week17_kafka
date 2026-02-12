@@ -9,7 +9,7 @@ class DbConnection:
             'host': os.getenv("MYSQL_HOST", "localhost"),
             'port': int(os.getenv("MYSQL_PORT", "3306")),
             'user': os.getenv("MYSQL_USER", "root"),
-            'password': os.getenv("MYSQL_PASS", "")
+            'password': os.getenv("MYSQL_PASSWORD", "")
         }
         self.database = os.getenv("MYSQL_DB", "weapon_db")
         self.connection = None
@@ -49,7 +49,7 @@ class DbConnection:
                         shippedDate DATE,
                         status VARCHAR(50),
                         comments VARCHAR(255),
-                        FOREIGN KEY (customerNumber) REFERENCES customers(customerNumber)
+                        customerNumber INT
                         );"""
 
         with cnx.cursor() as cursor:

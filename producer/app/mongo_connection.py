@@ -5,7 +5,7 @@ import json
 
 class MongoConnector:
     def __init__(self):
-        self.db_name = os.getenv("DATABASE_NAME", "users_db")
+        self.db_name = os.getenv("DATABASE_NAME", "weapons_db")
         self.mongo_url = os.getenv("MONGODB_URI", "mongodb://localhost:27017/")
         self.client = None
 
